@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Tech Dictionary</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* General Transitions */
+        body { transition: background-color 0.3s, color 0.3s; }
+        
+        /* Sticky Header */
+        .sticky-controls {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+        [data-bs-theme="dark"] .sticky-controls { background-color: rgba(33, 37, 41, 0.95); border-bottom: 1px solid #495057; }
+        [data-bs-theme="light"] .sticky-controls { background-color: rgba(255, 255, 255, 0.95); border-bottom: 1px solid #dee2e6; }
+
+        /* Interactive Elements */
+        .star-icon { cursor: pointer; transition: transform 0.2s; font-size: 1.2rem; }
+        .star-icon:hover { transform: scale(1.2); }
+        .star-active { color: #ffc107; text-shadow: 0 0 10px rgba(255, 193, 7, 0.5); }
+        .star-inactive { opacity: 0.2; }
+
+        .action-btn { cursor: pointer; transition: all 0.2s; margin: 0 5px; }
+        .action-btn:hover { transform: scale(1.2); }
+        .btn-speak { color: #6c757d; }
+        .btn-speak:hover { color: #0dcaf0; }
+        .btn-translate { color: #6c757d; }
+        .btn-translate:hover { color: #198754; } /* Green hover */
+        .btn-translate.active { color: #198754; text-shadow: 0 0 5px rgba(25, 135, 84, 0.4); }
+
+        .btn-edit { color: #0dcaf0; }
+        .btn-delete { color: #dc3545; }
+
+        /* Translated Row Highlight */
+        .translated-row {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+            border-left: 3px solid #198754;
+        }
+
+        /* Quiz Card Styling */
+        .quiz-card {
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            border: 2px dashed #6c757d;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: rgba(0,0,0,0.1);
+        }
+
+        /* Loading Spinner for Translation */
+        .spin-anim { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Animations */
+        .list-enter-active, .list-leave-active { transition: all 0.4s ease; }
+        .list-enter-from, .list-leave-to { opacity: 0; transform: translateX(30px); }
+    </style>
+</head>
+<body>
+
+<div id="app" class="container-fluid px-4">
+
+    <div class="sticky-controls">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h2 class="m-0"><i class="fa fa-book-journal-whills me-2"></i>Tech Dictionary</h2>
+            
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button class="btn btn-warning fw-bold" @click="startQuiz">
+                    <i class="fa fa-graduation-cap"></i> Practice
+                </button>
+
+                <div class="input-group" style="width: auto;">
+                    <span class="input-group-text"><i class="fa fa-globe"></i></span>
+                    <select class="form-select" v-model="targetLang" style="max-width: 150px;" title="Select Translation Language">
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ru">Russian</option>
+                        <option value="fa">Persian</option>
+                        <option value="ar">Arabic</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-outline-secondary" @click="toggleTheme" title="Light/Dark Mode">
+                    <i class="fa" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
+                </button>
+                
+                <button class="btn btn-outline-info" @click="exportData" title="Export Backup">
+                    <i class="fa fa-download"></i>
+                </button>
+                <button class="btn btn-outline-info" @click="triggerImport" title="Import Backup">
+                    <i class="fa fa-upload"></i>
+                </button>
+                <input type="file" id="importFile" class="d-none" @change="importData" accept=".json">
+
+                <button class="btn btn-outline-danger" @click="resetToDefault" title="Reset to Original File">
+                    <i class="fa fa-sync"></i>
+                </button>
+
+                <button class="btn btn-success" @click="openModal('add')">
+                    <i class="fa fa-plus"></i> Add
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-md-2">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa fa-sort"></i></span>
+                    <select class="form-select" v-model="sortOption">
+                        <option value="fav">Favorites First</option>
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                        <option value="views">Most Viewed</option>
+                        <option value="newest">Newest</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" v-model="filters.type">
+                    <option value="">All Types</option>
+                    <option v-for="type in uniqueTypes" :key="type" :value="type">{{ type }}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" v-model="filters.global" placeholder="Fast Global Search...">
+            </div>
+            <div class="col-md-2">
+                <input type="text" class="form-control" v-model="filters.name" placeholder="Filter Name...">
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" v-model="filters.meaning" placeholder="Filter Meaning...">
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" :class="theme === 'dark' ? 'table-dark' : 'table-striped'">
+            <thead>
+                <tr>
+                    <th class="text-center"><i class="fa fa-star"></i></th>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Meaning</th>
+                    <th>Synonym</th>
+                    <th>Views</th>
+                    <th class="text-center" style="min-width: 140px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody name="list" is="transition-group">
+                <tr v-for="word in filteredList" :key="word.id" :class="{'translated-row': word.isTranslated}">
+                    <td class="text-center">
+                        <i class="fa fa-star star-icon" 
+                           :class="word.fav ? 'star-active' : 'star-inactive'"
+                           @click="toggleFav(word)"></i>
+                    </td>
+                    <td class="text-muted small">{{ word.id }}</td>
+                    <td><span class="badge" :class="theme === 'dark' ? 'bg-secondary' : 'bg-dark'">{{ word.type }}</span></td>
+                    
+                    <td class="fw-bold text-primary">
+                        {{ word.display_name || word.name }}
+                        <i class="fa fa-volume-up action-btn btn-speak ms-2" @click.stop="speak(word.display_name || word.name)"></i>
+                    </td>
+                    
+                    <td>{{ word.display_meaning || word.meaning || '-' }}</td>
+                    
+                    <td class="fst-italic text-muted">{{ word.display_synonym || word.synonym || '-' }}</td>
+                    
+                    <td>{{ word.views }}</td>
+                    
+                    <td class="text-center">
+                        <i class="fa fa-language action-btn btn-translate" 
+                           :class="{'active': word.isTranslated, 'fa-spin spin-anim': word.isLoading}" 
+                           @click="toggleTranslation(word)" 
+                           title="Translate Item"></i>
+
+                        <i class="fa fa-pencil-alt action-btn btn-edit" @click="openModal('edit', word)"></i>
+                        <i class="fa fa-trash action-btn btn-delete" @click="deleteWord(word.id)"></i>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div v-if="filteredList.length === 0" class="text-center py-5 text-muted">
+            <h3>No results found</h3>
+        </div>
+    </div>
+
+    <div class="modal fade" id="wordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" :class="theme === 'dark' ? 'bg-dark text-light' : 'bg-light text-dark'">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">{{ modalMode === 'add' ? 'Add New Term' : 'Edit Term' }}</h5>
+                    <button type="button" class="btn-close" :class="theme === 'dark' ? 'btn-close-white' : ''" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form @submit.prevent="saveWord">
+                        <div class="mb-3">
+                            <label>Type</label>
+                            <input list="typeOptions" class="form-control" v-model="formData.type" required>
+                            <datalist id="typeOptions"><option v-for="type in uniqueTypes" :value="type"></option></datalist>
+                        </div>
+                        <div class="mb-3"><label>Name</label><input type="text" class="form-control" v-model="formData.name" required></div>
+                        <div class="mb-3"><label>Meaning</label><textarea class="form-control" v-model="formData.meaning" rows="2"></textarea></div>
+                        <div class="mb-3"><label>Synonym</label><input type="text" class="form-control" v-model="formData.synonym"></div>
+                        <div class="row">
+                            <div class="col-6 mb-3"><label>Views</label><input type="number" class="form-control" v-model.number="formData.views"></div>
+                            <div class="col-6 mb-3 d-flex align-items-center"><div class="form-check"><input class="form-check-input" type="checkbox" v-model="formData.fav" id="isFav"><label class="form-check-label ms-2" for="isFav">Favorite</label></div></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Save</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="quizModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" :class="theme === 'dark' ? 'bg-dark text-light' : 'bg-light text-dark'">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fa fa-brain text-warning me-2"></i>Practice Mode</h5>
+                    <button type="button" class="btn-close" :class="theme === 'dark' ? 'btn-close-white' : ''" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" v-if="quizWord">
+                    <div class="text-center mb-4">
+                        <small class="text-muted text-uppercase">{{ quizWord.type }}</small>
+                        <h2 class="display-6 fw-bold my-3">{{ quizWord.name }}</h2>
+                        <i class="fa fa-volume-up action-btn btn-speak fa-2x" @click="speak(quizWord.name)"></i>
+                    </div>
+                    <div class="quiz-card mb-4" :class="theme === 'dark' ? 'bg-black bg-opacity-25' : 'bg-light'">
+                        <div v-if="!quizRevealed">
+                            <i class="fa fa-eye-slash fa-3x text-secondary mb-3"></i>
+                            <p class="text-muted">Meaning is hidden</p>
+                        </div>
+                        <div v-else>
+                            <h5 class="text-info">Meaning</h5>
+                            <p class="lead">{{ quizWord.meaning || 'No definition available' }}</p>
+                            <hr v-if="quizWord.synonym" class="w-50 mx-auto">
+                            <div v-if="quizWord.synonym">
+                                <h6 class="text-warning">Synonym</h6>
+                                <p>{{ quizWord.synonym }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button v-if="!quizRevealed" class="btn btn-primary btn-lg" @click="revealAnswer"><i class="fa fa-eye me-2"></i> Reveal Answer</button>
+                        <button v-else class="btn btn-success btn-lg" @click="nextQuizWord"><i class="fa fa-random me-2"></i> Next Random Word</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="data-json.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                dictionary: [], 
+                theme: 'dark',
+                sortOption: 'fav',
+                modalMode: 'add',
+                
+                // Translation State
+                targetLang: 'es', // Default to Spanish
+
+                // Quiz State
+                quizWord: null, quizRevealed: false,
+
+                filters: { global: '', type: '', name: '', meaning: '' },
+                formData: { id: null, type: '', name: '', meaning: '', synonym: '', views: 0, fav: false }
+            }
+        },
+        computed: {
+            uniqueTypes() {
+                const types = new Set(this.dictionary.map(item => item.type));
+                return Array.from(types).sort();
+            },
+            filteredList() {
+                let result = this.dictionary;
+                if (this.filters.type) result = result.filter(item => item.type === this.filters.type);
+                if (this.filters.global) {
+                    const search = this.filters.global.toLowerCase();
+                    result = result.filter(item => 
+                        (item.name?.toLowerCase().includes(search)) ||
+                        (item.meaning?.toLowerCase().includes(search)) ||
+                        (item.synonym?.toLowerCase().includes(search))
+                    );
+                }
+                if (this.filters.name) result = result.filter(item => item.name?.toLowerCase().includes(this.filters.name.toLowerCase()));
+                if (this.filters.meaning) result = result.filter(item => item.meaning?.toLowerCase().includes(this.filters.meaning.toLowerCase()));
+
+                return result.sort((a, b) => {
+                    if (this.sortOption === 'fav') return (a.fav === b.fav) ? a.name.localeCompare(b.name) : (a.fav ? -1 : 1);
+                    if (this.sortOption === 'name_asc') return a.name.localeCompare(b.name);
+                    if (this.sortOption === 'name_desc') return b.name.localeCompare(a.name);
+                    if (this.sortOption === 'views') return b.views - a.views;
+                    if (this.sortOption === 'newest') return b.id - a.id;
+                    return 0;
+                });
+            }
+        },
+        methods: {
+            // --- TRANSLATION LOGIC ---
+            async toggleTranslation(word) {
+                // If already translated, revert back
+                if (word.isTranslated) {
+                    word.display_name = null;
+                    word.display_meaning = null;
+                    word.display_synonym = null;
+                    word.isTranslated = false;
+                    return;
+                }
+
+                // Start Loading
+                word.isLoading = true;
+
+                try {
+                    // We use MyMemory API (Free, no key required for small usage)
+                    // Pair: en|targetLang (assuming source is English)
+                    const baseUrl = "https://api.mymemory.translated.net/get";
+                    
+                    // Helper to fetch one string
+                    const translateText = async (text) => {
+                        if(!text) return null;
+                        const res = await fetch(`${baseUrl}?q=${encodeURIComponent(text)}&langpair=en|${this.targetLang}`);
+                        const data = await res.json();
+                        return data.responseData.translatedText;
+                    };
+
+                    // Translate all 3 fields in parallel
+                    const [tName, tMeaning, tSynonym] = await Promise.all([
+                        translateText(word.name),
+                        translateText(word.meaning),
+                        translateText(word.synonym)
+                    ]);
+
+                    // Apply translations
+                    word.display_name = tName;
+                    word.display_meaning = tMeaning;
+                    word.display_synonym = tSynonym;
+                    word.isTranslated = true;
+
+                } catch (error) {
+                    console.error("Translation failed", error);
+                    alert("Translation service unavailable or limit reached.");
+                } finally {
+                    word.isLoading = false;
+                }
+            },
+
+            // --- CORE UTILS ---
+            toggleTheme() {
+                this.theme = this.theme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-bs-theme', this.theme);
+                localStorage.setItem('techDictTheme', this.theme);
+            },
+            speak(text) {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const msg = new SpeechSynthesisUtterance(text);
+                    msg.lang = 'en-US'; // Or this.targetLang if you want to speak the translated text!
+                    window.speechSynthesis.speak(msg);
+                }
+            },
+            saveData() {
+                // We strip out the temporary display_ properties before saving to keep JSON clean
+                const cleanData = this.dictionary.map(item => {
+                    const { display_name, display_meaning, display_synonym, isTranslated, isLoading, ...persistent } = item;
+                    return persistent;
+                });
+                localStorage.setItem('myTechDictionary', JSON.stringify(cleanData));
+            },
+
+            // --- EXPORT / IMPORT ---
+            exportData() {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.dictionary));
+                const node = document.createElement('a');
+                node.href = dataStr;
+                node.download = "dictionary_backup.json";
+                document.body.appendChild(node);
+                node.click();
+                node.remove();
+            },
+            triggerImport() { document.getElementById('importFile').click(); },
+            importData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if(confirm(`Found ${json.length} words. Overwrite data?`)) {
+                            this.dictionary = json;
+                            this.saveData();
+                            alert("Import successful!");
+                        }
+                    } catch (err) { alert("Invalid JSON"); }
+                };
+                reader.readAsText(file);
+            },
+
+            // --- QUIZ ---
+            startQuiz() {
+                this.nextQuizWord();
+                new bootstrap.Modal(document.getElementById('quizModal')).show();
+            },
+            nextQuizWord() {
+                if (this.dictionary.length === 0) return;
+                const randomIndex = Math.floor(Math.random() * this.dictionary.length);
+                this.quizWord = this.dictionary[randomIndex];
+                this.quizRevealed = false;
+            },
+            revealAnswer() {
+                this.quizRevealed = true;
+                this.quizWord.views = (this.quizWord.views || 0) + 1;
+                this.saveData();
+            },
+
+            // --- CRUD ---
+            toggleFav(word) { word.fav = !word.fav; this.saveData(); },
+            deleteWord(id) {
+                if(confirm("Delete this word?")) {
+                    this.dictionary = this.dictionary.filter(w => w.id !== id);
+                    this.saveData();
+                }
+            },
+            openModal(mode, word = null) {
+                this.modalMode = mode;
+                this.formData = (mode === 'edit' && word) ? { ...word } : { id: null, type: '', name: '', meaning: '', synonym: '', views: 0, fav: false };
+                new bootstrap.Modal(document.getElementById('wordModal')).show();
+            },
+            saveWord() {
+                if (this.modalMode === 'add') {
+                    const maxId = this.dictionary.length > 0 ? Math.max(...this.dictionary.map(i => i.id || 0)) : 0;
+                    this.dictionary.unshift({ ...this.formData, id: maxId + 1 });
+                } else {
+                    const index = this.dictionary.findIndex(item => item.id === this.formData.id);
+                    if (index !== -1) this.dictionary[index] = { ...this.formData };
+                }
+                this.saveData();
+                this.formData = { id: null, type: '', name: '', meaning: '', synonym: '', views: 0, fav: false };
+            },
+            resetToDefault() {
+                if(confirm("Reset to original file? All changes will be lost.")) {
+                    localStorage.removeItem('myTechDictionary');
+                    location.reload();
+                }
+            },
+            loadData() {
+                const savedTheme = localStorage.getItem('techDictTheme');
+                if(savedTheme) { this.theme = savedTheme; document.documentElement.setAttribute('data-bs-theme', savedTheme); }
+                
+                const storedData = localStorage.getItem('myTechDictionary');
+                if (storedData) this.dictionary = JSON.parse(storedData);
+                else if (typeof Dictionary !== 'undefined') this.dictionary = Dictionary;
+            }
+        },
+        mounted() { this.loadData(); }
+    }).mount('#app');
+</script>
+</body>
+</html>
